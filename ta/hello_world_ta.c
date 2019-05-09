@@ -85,26 +85,24 @@ void TA_DestroyEntryPoint(void) {
 //#include "mbedtls/platform_util.h"
 #include "tee_tcpsocket.h"
 
-
-
 void demo(void) {
-//
-//    int ret = 1, len;
-//    int exit_code = MBEDTLS_EXIT_FAILURE;
-//    mbedtls_net_context server_fd;
-//    uint32_t flags;
-//    unsigned char buf[1024];
-//    const char *pers = "ssl_client1";
-//
-//    mbedtls_entropy_context entropy;
+
+    int ret = 1, len;
+    int exit_code = MBEDTLS_EXIT_FAILURE;
+    mbedtls_net_context server_fd;
+    uint32_t flags;
+    unsigned char buf[1024];
+    const char *pers = "ssl_client1";
+
+    mbedtls_entropy_context entropy;
 //    mbedtls_ctr_drbg_context ctr_drbg;
-//    mbedtls_ssl_context ssl;
-//    mbedtls_ssl_config conf;
-//    mbedtls_x509_crt cacert;
-//    mbedtls_net_init( &server_fd );
-//    mbedtls_ssl_init( &ssl );
-//    mbedtls_ssl_config_init( &conf );
-//    mbedtls_x509_crt_init( &cacert );
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt cacert;
+    mbedtls_net_init( &server_fd );
+    mbedtls_ssl_init( &ssl );
+    mbedtls_ssl_config_init( &conf );
+    mbedtls_x509_crt_init( &cacert );
 //    mbedtls_ctr_drbg_init(&ctr_drbg);
     int fd = 0;
     DMSG("RUNNING");
@@ -114,6 +112,9 @@ void demo(void) {
     }
     char getReq[] = "GET / HTTP/1.0\r\n\r\n";
     int bytesSent, bytesRecv;
+
+    mbedtls_ssl_set_bio( &ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL );
+
     res = TEE_SimpleSendConnection(fd, getReq, sizeof(getReq), &bytesSent);
     if (res != TEE_SUCCESS) {
         DMSG("FAIL SEND");
@@ -187,7 +188,6 @@ void TA_CloseSessionEntryPoint(void *sess_ctx) {
     IMSG("Goodbye!\n");
 }
 
-#include <tee_tcpsocket.h>
 
 static TEE_Result inc_value(uint32_t param_types, TEE_Param params[4]) {
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,

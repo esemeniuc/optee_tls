@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e #fail if a single thing fails
 
 CC=~/trustedcapsules/code/toolchains/aarch64/bin/aarch64-linux-gnu-
 DIR=~/trustedcapsules/code
