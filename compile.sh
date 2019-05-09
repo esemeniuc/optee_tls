@@ -1,11 +1,24 @@
 #!/bin/bash
 
-make -C host \
-CROSS_COMPILE=~/trustedcapsules/code/toolchains/aarch64/bin/aarch64-linux-gnu- \
+CC=~/trustedcapsules/code/toolchains/aarch64/bin/aarch64-linux-gnu-
+DIR=~/trustedcapsules/code
+#DIR=~/dev/optee_clean
+
+#make -C host V=1 ${1} \
+#CROSS_COMPILE=${CC} \
+#TEEC_EXPORT=~/dev/optee_clean/optee_client/out/export/usr \
+#--no-builtin-variables
+
+make -C host V=1 ${1} \
+CROSS_COMPILE=${CC} \
 TEEC_EXPORT=~/trustedcapsules/code/optee_client/out/export \
 --no-builtin-variables
 
-make -C ta \
-CROSS_COMPILE=~/trustedcapsules/code/toolchains/aarch64/bin/aarch64-linux-gnu- \
+#mkdir ta/mbedcopy
+#cp ~/dev/optee_clean/optee_os/lib/libmbedtls/mbedtls/library/* ./ta/mbedcopy/
+
+make -C ta V=1 ${1} \
+CROSS_COMPILE=${CC} \
 PLATFORM=hikey_debian_stable \
-TA_DEV_KIT_DIR=~/trustedcapsules/code/optee_os/out/arm/export-ta_arm64
+CFG_TEE_TA_LOG_LEVEL=4 \
+TA_DEV_KIT_DIR=${DIR}/optee_os/out/arm/export-ta_arm64

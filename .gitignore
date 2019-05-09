@@ -54,4 +54,5 @@ dkms.conf
 cmake-build-debug/
 *.ta
 *.dmp
+*.lds
 optee_example_hello_world
