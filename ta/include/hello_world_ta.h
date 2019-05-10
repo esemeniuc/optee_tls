@@ -40,4 +40,11 @@
 #define TA_HELLO_WORLD_CMD_INC_VALUE		0
 #define TA_HELLO_WORLD_CMD_DEC_VALUE		1
 
+
+
+// custom functions
+void *TEE_Calloc(size_t size);
+
+
+
 #endif /*TA_HELLO_WORLD_H*/
