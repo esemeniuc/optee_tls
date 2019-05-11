@@ -18,6 +18,9 @@ TEEC_EXPORT=~/trustedcapsules/code/optee_client/out/export \
 #mkdir ta/mbedcopy
 #cp ~/dev/optee_clean/optee_os/lib/libmbedtls/mbedtls/library/* ./ta/mbedcopy/
 
+make -C /home/eric/trustedcapsules/code/build optee-os
+#rm -f home/eric/trustedcapsules/code/optee_os/out/arm/export-ta_arm64/libmbedtls.a
+
 make -C ta V=1 ${1} \
 CROSS_COMPILE=${CC} \
 PLATFORM=hikey_debian_stable \

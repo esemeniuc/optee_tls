@@ -4,7 +4,7 @@ project(optee_example_hello_world C)
 
 set(SRC host/main.c
         ta/hello_world_ta.c
-        ta/mbedhack.c)
+        ta/mbed_optee_compat.c)
 
 add_executable(${PROJECT_NAME} ${SRC})
 

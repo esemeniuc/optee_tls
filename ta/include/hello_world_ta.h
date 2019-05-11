@@ -44,7 +44,8 @@
 
 // custom functions
 void *TEE_Calloc(size_t size);
-
+int mbed_entropy_get_bytes( void *data, unsigned char *output,
+                                  size_t len, size_t *olen );
 
 
 #endif /*TA_HELLO_WORLD_H*/

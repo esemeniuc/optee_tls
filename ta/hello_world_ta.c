@@ -108,15 +108,15 @@ void cleanup(mbedtls_net_context *server_fd, mbedtls_entropy_context *entropy, m
 }
 
 void demo(void) {
-
     int ret = 1, len;
     int exit_code = MBEDTLS_EXIT_FAILURE;
     mbedtls_net_context server_fd;
     uint32_t flags;
     unsigned char buf[1024];
     const char *pers = "ssl_client1";
-    char SERVER_NAME[] = "172.217.3.206";
-    int SERVER_PORT = 80;
+    char SERVER_NAME[] = "104.154.89.105";
+    int SERVER_PORT = 443;
+    mbedtls_platform_set_calloc_free( TEE_Calloc, TEE_Free);
 
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
@@ -129,7 +129,9 @@ void demo(void) {
     mbedtls_x509_crt_init(&cacert);
     mbedtls_ctr_drbg_init(&ctr_drbg);
     mbedtls_entropy_init(&entropy);
-    mbedtls_entropy_add_source(); //FIXME
+    mbedtls_entropy_add_source(&entropy, mbed_entropy_get_bytes,
+                               NULL, 32,
+                               MBEDTLS_ENTROPY_SOURCE_STRONG);
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
                                      (const unsigned char *) pers,
                                      strlen(pers))) != 0) {
@@ -137,8 +139,11 @@ void demo(void) {
         cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
         return;
     }
+    printf("GOTTEM0\n\n");
+
     ret = mbedtls_x509_crt_parse(&cacert, (const unsigned char *) mbedtls_test_cas_pem,
                                  mbedtls_test_cas_pem_len);
+    printf("GOTTEM\n\n");
     if (ret < 0) {
         printf(" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
         cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
@@ -165,29 +170,30 @@ void demo(void) {
     mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
     mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
+    mbedtls_debug_set_threshold(4);
 
-    mbedtls_platform_set_calloc_free( TEE_Calloc, TEE_Free);
     if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
         printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
         cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
         return;
     }
-//
-//    if ((ret = mbedtls_ssl_set_hostname(&ssl, SERVER_NAME)) != 0) {
-//        printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
-//        cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
-//        return;
-//    }
-//
-//    mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-//    while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
-//        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-//            printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
-//            cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
-//            return;
-//        }
-//    }
-//
+
+    if ((ret = mbedtls_ssl_set_hostname(&ssl, SERVER_NAME)) != 0) {
+        printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+        cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
+        return;
+    }
+
+    mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+    while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
+        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
+            cleanup(&server_fd, &entropy, &ctr_drbg, &ssl, &conf, &cacert);
+            return;
+        }
+    }
+    printf("SURVIVED\n\n\n");
+
 //    /* In real life, we probably want to bail out when ret != 0 */
 //    if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0) {
 //        char vrfy_buf[512];
