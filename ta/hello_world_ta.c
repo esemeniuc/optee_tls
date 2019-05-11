@@ -52,7 +52,7 @@ void TA_DestroyEntryPoint(void) {
 TEE_Result
 registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
     char regReq[2048], json_payload[2048];
-    snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\",\"pubkey\": \"%s\"}", email, pubkey);
+    snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\", \"pubkey\": \"%s\"}", email, pubkey);
     snprintf(regReq, sizeof(regReq), "POST /register HTTP/1.1\r\n"
                                      "Host: %s:%d\r\n"
                                      "User-Agent: TrustedCapsule/0.0.1\r\n"
@@ -136,15 +136,55 @@ static TEE_Result ta_register(uint32_t param_types, TEE_Param params[4]) {
         EMSG("Failed to open socket");
         return TEE_ERROR_COMMUNICATION;
     }
-    unsigned char resp[2048];
-    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
-    return TEE_SUCCESS;
+    unsigned char resp[4096];
+    return registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
 }
 
 
+TEE_Result
+verifyReq(int fd,
+          const char *SERVER_NAME,
+          int SERVER_PORT,
+          const char *email,
+          const char *nonce,
+          uint8_t *resp,
+          size_t resp_size) {
+    char verifyReq[2048], json_payload[2048];
+    snprintf(json_payload, sizeof(json_payload),
+             "{\"email\": \"%s\", \"pubkey\": \"%s\", \"nonce\": \"%s\"}",
+             email, pubkey, nonce);
+    snprintf(verifyReq, sizeof(verifyReq), "POST /verify HTTP/1.1\r\n"
+                                           "Host: %s:%d\r\n"
+                                           "User-Agent: TrustedCapsule/0.0.1\r\n"
+                                           "Accept: */*\r\n"
+                                           "Content-Type: application/json\r\n"
+                                           "Content-Length: %lu\r\n"
+                                           "\r\n"
+                                           "%s\r\n", SERVER_NAME, SERVER_PORT, strlen(json_payload), json_payload);
+
+    int bytesSent = 0, bytesRecv = 0;
+    if (TEE_SimpleSendConnection(fd, verifyReq, sizeof(verifyReq), &bytesSent) != TEE_SUCCESS) {
+        EMSG("Failed to send verify request");
+        return TEE_ERROR_COMMUNICATION;
+    }
+    do {
+        resp += bytesRecv;
+        resp_size -= bytesRecv;
+        if (TEE_SimpleRecvConnection(fd, resp, resp_size, &bytesRecv) != TEE_SUCCESS) {
+            EMSG("Failed to receive verify response");
+            return TEE_ERROR_COMMUNICATION;
+        }
+        printf("got %d bytes\n", bytesRecv);
+        for (int i = 0; i < bytesRecv; i++)
+            printf("%c", resp[i]);
+    } while (bytesRecv > 0);
+
+    return TEE_SUCCESS;
+}
+
 static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
-                                               TEE_PARAM_TYPE_NONE,
+                                               TEE_PARAM_TYPE_MEMREF_INPUT,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE);
 
@@ -155,6 +195,7 @@ static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     }
 
     char *email = params[0].memref.buffer;
+    char *nonce = params[1].memref.buffer;
     char SERVER_NAME[] = "198.162.52.232";
     int SERVER_PORT = 5000;
 
@@ -162,9 +203,11 @@ static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
         DMSG("FAIL OPEN");
     }
-    unsigned char resp[2048];
-    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
-    return TEE_SUCCESS;
+    unsigned char resp[4096];
+
+    //TODO decrypt nonce
+
+    return verifyReq(fd, SERVER_NAME, SERVER_PORT, email, nonce, resp, sizeof(resp));
 }
 
 static TEE_Result ta_decrypt(uint32_t param_types, TEE_Param params[4]) {
