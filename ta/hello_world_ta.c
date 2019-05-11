@@ -86,7 +86,7 @@ void demo(void) {
     if (res != TEE_SUCCESS) {
         DMSG("FAIL OPEN");
     }
-    int bytesSent, bytesRecv;
+    int bytesSent = 0, bytesRecv = 0;
 
     char getReq[] = "GET / HTTP/1.0\r\n\r\n";
     res = TEE_SimpleSendConnection(fd, getReq, sizeof(getReq), &bytesSent);
@@ -94,15 +94,17 @@ void demo(void) {
         DMSG("FAIL SEND");
     }
     char recvbuf[2000] = {};
-    res = TEE_SimpleRecvConnection(fd, recvbuf, sizeof(recvbuf), &bytesRecv);
-    if (res != TEE_SUCCESS) {
-        DMSG("FAIL RECV");
-    }
-    printf("got %d bytes\n", bytesRecv);
-    for (int i = 0; i < 2000; i++)
-        printf("%c", recvbuf[i]);
-    DMSG("%s\n\n", recvbuf);
+    do {
 
+        if (res != TEE_SUCCESS) {
+            DMSG("FAIL RECV");
+        }
+        printf("got %d bytes\n", bytesRecv);
+        for (int i = 0; i < 2000; i++)
+            printf("%c", recvbuf[i]);
+//        DMSG("%s\n\n", recvbuf);
+        res = TEE_SimpleRecvConnection(fd, recvbuf, sizeof(recvbuf), &bytesRecv);
+    } while (bytesRecv > 0);
 
 }
 
