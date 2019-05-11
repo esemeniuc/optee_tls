@@ -37,13 +37,9 @@
 		{ 0xab, 0xe2, 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b} }
 
 /* The function IDs implemented in this TA */
-#define TA_HELLO_WORLD_CMD_INC_VALUE		0
-#define TA_HELLO_WORLD_CMD_DEC_VALUE		1
-
-
-
-// custom functions
-void *TEE_Calloc(size_t size);
+#define TA_APP_REGISTER		0
+#define TA_APP_VERIFY		1
+#define TA_APP_DECRYPT		2
 
 
 

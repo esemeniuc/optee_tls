@@ -35,8 +35,6 @@
  * the TA.
  */
 TEE_Result TA_CreateEntryPoint(void) {
-    DMSG("has been called");
-
     return TEE_SUCCESS;
 }
 
@@ -45,14 +43,14 @@ TEE_Result TA_CreateEntryPoint(void) {
  * crashed or panicked. This is the last call in the TA.
  */
 void TA_DestroyEntryPoint(void) {
-    DMSG("has been called");
 }
 
 #include "tee_tcpsocket.h"
 #include <string.h>
 #include <pubpriv.h>
 
-void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
+TEE_Result
+registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
     char regReq[2048], json_payload[2048];
     snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\",\"pubkey\": \"%s\"}", email, pubkey);
     snprintf(regReq, sizeof(regReq), "POST /register HTTP/1.1\r\n"
@@ -65,36 +63,25 @@ void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *e
                                      "%s\r\n", SERVER_NAME, SERVER_PORT, strlen(json_payload), json_payload);
 
     int bytesSent = 0, bytesRecv = 0;
-    TEE_Result res = TEE_SimpleSendConnection(fd, regReq, sizeof(regReq), &bytesSent);
-    if (res != TEE_SUCCESS) {
-        DMSG("FAIL SEND");
-        return;
+    if (TEE_SimpleSendConnection(fd, regReq, sizeof(regReq), &bytesSent) != TEE_SUCCESS) {
+        EMSG("Failed to send register request");
+        return TEE_ERROR_COMMUNICATION;
     }
     do {
         resp += bytesRecv;
         resp_size -= bytesRecv;
         if (TEE_SimpleRecvConnection(fd, resp, resp_size, &bytesRecv) != TEE_SUCCESS) {
-            DMSG("FAIL RECV");
-            break;
+            EMSG("Failed to receive register response");
+            return TEE_ERROR_COMMUNICATION;
         }
         printf("got %d bytes\n", bytesRecv);
         for (int i = 0; i < bytesRecv; i++)
             printf("%c", resp[i]);
     } while (bytesRecv > 0);
+
+    return TEE_SUCCESS;
 }
 
-void demo(const char *email) {
-    char SERVER_NAME[] = "198.162.52.232";
-    int SERVER_PORT = 5000;
-
-    int fd;
-    TEE_Result res = TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd);
-    if (res != TEE_SUCCESS) {
-        DMSG("FAIL OPEN");
-    }
-    unsigned char resp[2048];
-    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
-}
 
 /*
  * Called when a new session is opened to the TA. *sess_ctx can be updated
@@ -108,20 +95,12 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types, TEE_Param params[4], v
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE);
 
-    DMSG("has been called");
-
     if (param_types != exp_param_types)
         return TEE_ERROR_BAD_PARAMETERS;
 
 /* Unused parameters */
     (void) &params;
     (void) &sess_ctx;
-
-/*
- * The DMSG() macro is non-standard, TEE Internal API doesn't
- * specify any means to logging from a TA.
- */
-    IMSG("Hello World!\n");
 
 /* If return value != TEE_SUCCESS the session will not be created. */
     return TEE_SUCCESS;
@@ -133,11 +112,10 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types, TEE_Param params[4], v
  */
 void TA_CloseSessionEntryPoint(void *sess_ctx) {
     (void) &sess_ctx; /* Unused parameter */
-    IMSG("Goodbye!\n");
 }
 
 
-static TEE_Result inc_value(uint32_t param_types, TEE_Param params[4]) {
+static TEE_Result ta_register(uint32_t param_types, TEE_Param params[4]) {
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE,
@@ -149,28 +127,50 @@ static TEE_Result inc_value(uint32_t param_types, TEE_Param params[4]) {
         return TEE_ERROR_BAD_PARAMETERS;
     }
 
-    printf("got %s\n", params[0].memref.buffer);
-    demo(params[0].memref.buffer);
+    char *email = params[0].memref.buffer;
+    char SERVER_NAME[] = "198.162.52.232";
+    int SERVER_PORT = 5000;
+
+    int fd;
+    if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
+        EMSG("Failed to open socket");
+        return TEE_ERROR_COMMUNICATION;
+    }
+    unsigned char resp[2048];
+    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
     return TEE_SUCCESS;
 }
 
-static TEE_Result dec_value(uint32_t param_types, TEE_Param params[4]) {
-    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
+
+static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
+    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE);
 
-    DMSG("has been called");
 
-    if (param_types != exp_param_types)
+    if (param_types != exp_param_types) {
+        EMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
         return TEE_ERROR_BAD_PARAMETERS;
+    }
 
-    IMSG("Got value: %u from NW", params[0].value.a);
-    params[0].value.a--;
-    IMSG("Decrease value to: %u", params[0].value.a);
+    char *email = params[0].memref.buffer;
+    char SERVER_NAME[] = "198.162.52.232";
+    int SERVER_PORT = 5000;
 
+    int fd;
+    if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
+        DMSG("FAIL OPEN");
+    }
+    unsigned char resp[2048];
+    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
     return TEE_SUCCESS;
 }
+
+static TEE_Result ta_decrypt(uint32_t param_types, TEE_Param params[4]) {
+    return TEE_SUCCESS;
+}
+
 
 /*
  * Called when a TA is invoked. sess_ctx hold that value that was
@@ -185,14 +185,12 @@ TEE_Result TA_InvokeCommandEntryPoint(void *sess_ctx,
     (void) &sess_ctx; /* Unused parameter */
 
     switch (cmd_id) {
-        case TA_HELLO_WORLD_CMD_INC_VALUE:
-            return
-                    inc_value(param_types, params
-                    );
-        case TA_HELLO_WORLD_CMD_DEC_VALUE:
-            return
-                    dec_value(param_types, params
-                    );
+        case TA_APP_REGISTER:
+            return ta_register(param_types, params);
+        case TA_APP_VERIFY:
+            return ta_verify(param_types, params);
+        case TA_APP_DECRYPT:
+            return ta_verify(param_types, params);
         default:
             return TEE_ERROR_BAD_PARAMETERS;
     }
