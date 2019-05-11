@@ -44,6 +44,7 @@
 
 // custom functions
 void *TEE_Calloc(size_t size);
+void TEE_Free2(void *ptr);
 int mbed_entropy_get_bytes( void *data, unsigned char *output,
                                   size_t len, size_t *olen );
 

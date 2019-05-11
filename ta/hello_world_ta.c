@@ -116,7 +116,7 @@ void demo(void) {
     const char *pers = "ssl_client1";
     char SERVER_NAME[] = "104.154.89.105";
     int SERVER_PORT = 443;
-    mbedtls_platform_set_calloc_free( TEE_Calloc, TEE_Free);
+    mbedtls_platform_set_calloc_free( TEE_Calloc, TEE_Free2);
 
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
