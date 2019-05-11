@@ -29,29 +29,6 @@
 #include <tee_internal_api_extensions.h>
 
 #include <hello_world_ta.h>
-//#include <teec_trace.h>
-
-#ifndef TRACE_ERROR
-#define TRACE_ERROR  1
-#endif
-
-#ifndef TRACE_INFO
-#define TRACE_INFO   2
-#endif
-#ifndef TRACE_DEBUG
-#define TRACE_DEBUG  3
-#endif
-
-#ifndef TRACE_FLOW
-#define TRACE_FLOW   4
-#endif
-
-#ifndef IMSG
-#define IMSG(fmt, ...)   dprintf(TRACE_INFO, fmt "\n", ##__VA_ARGS__)
-#endif
-#ifndef DMSG
-#define DMSG(fmt, ...)   dprintf(TRACE_DEBUG, fmt "\n", ##__VA_ARGS__)
-#endif
 
 /*
  * Called when the instance of the TA is created. This is the first call in
@@ -73,38 +50,51 @@ void TA_DestroyEntryPoint(void) {
 
 #include "tee_tcpsocket.h"
 #include <string.h>
+#include <pubpriv.h>
 
-void demo(void) {
+void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email) {
+    char regReq[2048], json_payload[2048];
+    snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\",\"pubkey\": \"%s\"}", email, pubkey);
+    snprintf(regReq, sizeof(regReq), "POST /register HTTP/1.1\r\n"
+                                     "Host: %s:%d\r\n"
+                                     "User-Agent: TrustedCapsule/0.0.1\r\n"
+                                     "Accept: */*\r\n"
+                                     "Content-Type: application/json\r\n"
+                                     "Content-Length: %lu\r\n"
+                                     "\r\n"
+                                     "%s\r\n", SERVER_NAME, SERVER_PORT, strlen(json_payload), json_payload);
 
+    int bytesSent = 0, bytesRecv = 0;
+    TEE_Result res = TEE_SimpleSendConnection(fd, regReq, sizeof(regReq), &bytesSent);
+    if (res != TEE_SUCCESS) {
+        DMSG("FAIL SEND");
+        return;
+    }
+    char recvbuf[2048];
+    do {
+        res = TEE_SimpleRecvConnection(fd, recvbuf, sizeof(recvbuf), &bytesRecv);
+        if (res != TEE_SUCCESS) {
+            DMSG("FAIL RECV");
+            break;
+        }
+        printf("got %d bytes\n", bytesRecv);
+        for (int i = 0; i < bytesRecv; i++)
+            printf("%c", recvbuf[i]);
+    } while (bytesRecv > 0);
+}
+
+void demo(const char *email) {
     unsigned char buf[1024];
     char SERVER_NAME[] = "198.162.52.232";
     int SERVER_PORT = 5000;
 
-    int fd, len;
+    int fd;
     DMSG("RUNNING");
     TEE_Result res = TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd);
     if (res != TEE_SUCCESS) {
         DMSG("FAIL OPEN");
     }
-    int bytesSent = 0, bytesRecv = 0;
-
-    char getReq[] = "GET / HTTP/1.0\r\n\r\n";
-    res = TEE_SimpleSendConnection(fd, getReq, sizeof(getReq), &bytesSent);
-    if (res != TEE_SUCCESS) {
-        DMSG("FAIL SEND");
-    }
-    char recvbuf[2000] = {};
-    do {
-
-        if (res != TEE_SUCCESS) {
-            DMSG("FAIL RECV");
-        }
-        printf("got %d bytes\n", bytesRecv);
-        for (int i = 0; i < 2000; i++)
-            printf("%c", recvbuf[i]);
-//        DMSG("%s\n\n", recvbuf);
-        res = TEE_SimpleRecvConnection(fd, recvbuf, sizeof(recvbuf), &bytesRecv);
-    } while (bytesRecv > 0);
+    registerReq(fd, SERVER_NAME, SERVER_PORT, "tom@email.com");
 
 }
 
@@ -150,28 +140,19 @@ void TA_CloseSessionEntryPoint(void *sess_ctx) {
 
 
 static TEE_Result inc_value(uint32_t param_types, TEE_Param params[4]) {
-    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
+    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE);
 
-    DMSG("has been called");
-    DMSG("running demo");
-    demo();
-    if (param_types != exp_param_types)
+
+    if (param_types != exp_param_types) {
+        EMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
         return TEE_ERROR_BAD_PARAMETERS;
+    }
 
-
-    TEE_iSocket *const TEE_tlsSocket = NULL;
-    IMSG("%x", (unsigned int) TEE_tlsSocket);
-
-
-    IMSG("Got value: %u from NW", params[0].value.a);
-    IMSG("Got value: %u from NW", params[0].value.b);
-    params[0].value.a++;
-    IMSG("Increase value to: %u", params[0].value.a);
-    IMSG("Increase value to: %u", params[0].value.b);
-
+    printf("got %s\n", params[0].memref.buffer);
+    demo(params[0].memref.buffer);
     return TEE_SUCCESS;
 }
 
