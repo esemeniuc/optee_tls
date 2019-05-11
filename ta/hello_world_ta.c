@@ -52,7 +52,7 @@ void TA_DestroyEntryPoint(void) {
 #include <string.h>
 #include <pubpriv.h>
 
-void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email) {
+void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
     char regReq[2048], json_payload[2048];
     snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\",\"pubkey\": \"%s\"}", email, pubkey);
     snprintf(regReq, sizeof(regReq), "POST /register HTTP/1.1\r\n"
@@ -70,32 +70,30 @@ void registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *e
         DMSG("FAIL SEND");
         return;
     }
-    char recvbuf[2048];
     do {
-        res = TEE_SimpleRecvConnection(fd, recvbuf, sizeof(recvbuf), &bytesRecv);
-        if (res != TEE_SUCCESS) {
+        resp += bytesRecv;
+        resp_size -= bytesRecv;
+        if (TEE_SimpleRecvConnection(fd, resp, resp_size, &bytesRecv) != TEE_SUCCESS) {
             DMSG("FAIL RECV");
             break;
         }
         printf("got %d bytes\n", bytesRecv);
         for (int i = 0; i < bytesRecv; i++)
-            printf("%c", recvbuf[i]);
+            printf("%c", resp[i]);
     } while (bytesRecv > 0);
 }
 
 void demo(const char *email) {
-    unsigned char buf[1024];
     char SERVER_NAME[] = "198.162.52.232";
     int SERVER_PORT = 5000;
 
     int fd;
-    DMSG("RUNNING");
     TEE_Result res = TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd);
     if (res != TEE_SUCCESS) {
         DMSG("FAIL OPEN");
     }
-    registerReq(fd, SERVER_NAME, SERVER_PORT, "tom@email.com");
-
+    unsigned char resp[2048];
+    registerReq(fd, SERVER_NAME, SERVER_PORT, email, resp, sizeof(resp));
 }
 
 /*
