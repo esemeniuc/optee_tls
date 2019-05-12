@@ -53,7 +53,7 @@ void TA_DestroyEntryPoint(void) {
 TEE_Result
 registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
     char regReq[2048], json_payload[2048];
-    snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\", \"pubkey\": \"%s\"}", email, pubkey);
+    snprintf(json_payload, sizeof(json_payload), "{\"email\": \"%s\", \"pubkey\": \"%s\"}", email, pubkey_network);
     snprintf(regReq, sizeof(regReq), "POST /register HTTP/1.1\r\n"
                                      "Host: %s:%d\r\n"
                                      "User-Agent: TrustedCapsule/0.0.1\r\n"
@@ -130,7 +130,7 @@ static TEE_Result ta_register(uint32_t param_types, TEE_Param params[4]) {
 
     char *email = params[0].memref.buffer;
     char SERVER_NAME[] = "198.162.52.232";
-    int SERVER_PORT = 5000;
+    int SERVER_PORT = 5001;
 
     int fd;
     if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
@@ -247,7 +247,7 @@ static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     }
 
     char SERVER_NAME[] = "198.162.52.232";
-    int SERVER_PORT = 5000;
+    int SERVER_PORT = 5001;
     int fd;
     if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
         EMSG("Failed to open socket");

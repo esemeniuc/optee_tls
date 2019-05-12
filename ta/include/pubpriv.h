@@ -41,4 +41,14 @@ char pubkey[] = "-----BEGIN RSA PUBLIC KEY-----\n"
                 "81aAE/1//JS4BgD/MQdCj7b1KTsJcpbJuQrjvSLkhwXhYdrMSB4VOOyQnANcwBO8\n"
                 "FUJH85ynWNVu+hW2aEhrSqHkUOcrCkPFNQIDAQAB\n"
                 "-----END RSA PUBLIC KEY-----";
+
+//escape newline since json doesnt support mulitline
+char pubkey_network[] = "-----BEGIN RSA PUBLIC KEY-----\\n"
+                "MIIBCgKCAQEAqpp2yp0KyupA6cFimf0/m+sL8bofP+SX9Q9xrQ3CABLboRyVRUtI\\n"
+                "2wUGaBOFCNIDbvB/8YTZOLUwLWcKkPu0wn3v/U4NQvHDPWMtlP49YuvWIdxOCLPv\\n"
+                "DDm55BXfiFMhjGQYXbjmkTsx9GAqYgljIEmma484tQw7xeU3xMMuwOhNA0LpYxM0\\n"
+                "84uHXsfgvsl5c80CVEgVJ7biUkCkJwYk302NtUU59COV5dzPE8Ggdz3q31f4iR/m\\n"
+                "81aAE/1//JS4BgD/MQdCj7b1KTsJcpbJuQrjvSLkhwXhYdrMSB4VOOyQnANcwBO8\\n"
+                "FUJH85ynWNVu+hW2aEhrSqHkUOcrCkPFNQIDAQAB\\n"
+                "-----END RSA PUBLIC KEY-----";
 #endif //OPTEE_EXAMPLE_HELLO_WORLD_PUBPRIV_H
