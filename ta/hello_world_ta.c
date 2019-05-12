@@ -48,6 +48,7 @@ void TA_DestroyEntryPoint(void) {
 #include "tee_tcpsocket.h"
 #include <string.h>
 #include <pubpriv.h>
+#include <tee_api_types.h>
 
 TEE_Result
 registerReq(int fd, const char *SERVER_NAME, int SERVER_PORT, const char *email, uint8_t *resp, size_t resp_size) {
@@ -182,6 +183,48 @@ verifyReq(int fd,
     return TEE_SUCCESS;
 }
 
+#include "mbedtls/pk.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+
+int decrypt_nonce(char *nonce, size_t nonce_len, char *out_buf, size_t out_buf_size) {
+    mbedtls_pk_context pk;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_pk_init(&pk);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    //Seeding the random number generator
+    int ret;
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func,
+                                     &entropy, NULL, 0)) != 0) {
+        printf(" failed\n  ! mbedtls_ctr_drbg_seed returned -0x%04x\n",
+               -ret);
+        return ret;
+    }
+
+    if ((ret = mbedtls_pk_parse_key(&pk, (unsigned char *) privkey, sizeof(privkey), NULL, 0)) != 0) {
+        printf(" failed\n  ! mbedtls_pk_parse_keyfile returned -0x%04x\n", -ret);
+        return ret;
+    }
+
+    // Decrypt the encrypted RSA data and print the result.
+    size_t out_len;
+    if ((ret = mbedtls_pk_decrypt(&pk, (unsigned char *) nonce, nonce_len,
+                                  (unsigned char *) out_buf, &out_len, out_buf_size,
+                                  mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
+        printf(" failed\n  ! mbedtls_pk_decrypt returned -0x%04x\n",
+               -ret);
+        return ret;
+    }
+
+    mbedtls_pk_free(&pk);
+    mbedtls_entropy_free(&entropy);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    return TEE_SUCCESS;
+}
+
 static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
                                                TEE_PARAM_TYPE_MEMREF_INPUT,
@@ -196,18 +239,23 @@ static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
 
     char *email = params[0].memref.buffer;
     char *nonce = params[1].memref.buffer;
+    int nonce_len = params[1].memref.size;
+
+    char nonce_dec_buf[1024];
+    if (decrypt_nonce(nonce, nonce_len, nonce_dec_buf, sizeof(nonce_dec_buf)) != TEE_SUCCESS) {
+        EMSG("Failed to decrypt nonce");
+    }
+
     char SERVER_NAME[] = "198.162.52.232";
     int SERVER_PORT = 5000;
-
     int fd;
     if (TEE_SimpleOpenConnection(SERVER_NAME, SERVER_PORT, &fd) != TEE_SUCCESS) {
-        DMSG("FAIL OPEN");
+        EMSG("Failed to open socket");
+        return TEE_ERROR_COMMUNICATION;
     }
-    unsigned char resp[4096];
 
-    //TODO decrypt nonce
-
-    return verifyReq(fd, SERVER_NAME, SERVER_PORT, email, nonce, resp, sizeof(resp));
+    unsigned char resp_buf[4096];
+    return verifyReq(fd, SERVER_NAME, SERVER_PORT, email, nonce, resp_buf, sizeof(resp_buf));
 }
 
 static TEE_Result ta_decrypt(uint32_t param_types, TEE_Param params[4]) {
