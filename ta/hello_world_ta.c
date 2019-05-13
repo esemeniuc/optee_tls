@@ -153,7 +153,7 @@ verifyReq(int fd,
     char verifyReq[2048], json_payload[2048];
     snprintf(json_payload, sizeof(json_payload),
              "{\"email\": \"%s\", \"pubkey\": \"%s\", \"nonce\": \"%s\"}",
-             email, pubkey, nonce);
+             email, pubkey_network, nonce);
     snprintf(verifyReq, sizeof(verifyReq), "POST /verify HTTP/1.1\r\n"
                                            "Host: %s:%d\r\n"
                                            "User-Agent: TrustedCapsule/0.0.1\r\n"
@@ -186,32 +186,59 @@ verifyReq(int fd,
 #include "mbedtls/pk.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
+#include "utee_syscalls.h"
+
+/**
+ * \brief           Entropy poll callback pointer
+ *
+ * \param data      Callback-specific data pointer (not used)
+ * \param output    Data to fill
+ * \param len       Maximum size to provide
+ * \param olen      The actual amount of bytes put into the buffer (Can be 0)
+ *
+ * \return          0 if no critical failures occurred,
+ *                  MBEDTLS_ERR_ENTROPY_SOURCE_FAILED otherwise
+ */
+int mbed_entropy_get_bytes(void *data, unsigned char *output,
+                           size_t len, size_t *olen) {
+    if (utee_cryp_random_number_generate(output, len) == TEE_SUCCESS) {
+        *olen = len;
+        return 0;
+    }
+    *olen = 0;
+    return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+}
 
 int decrypt_nonce(char *nonce, size_t nonce_len, char *out_buf, size_t out_buf_size) {
+    const char *pers = "mbedtls_pk_decrypt";
     mbedtls_pk_context pk;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_pk_init(&pk);
     mbedtls_entropy_init(&entropy);
+    mbedtls_entropy_add_source(&entropy, mbed_entropy_get_bytes,
+                               NULL, 32,
+                               MBEDTLS_ENTROPY_SOURCE_STRONG);
     mbedtls_ctr_drbg_init(&ctr_drbg);
 
     //Seeding the random number generator
     int ret;
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func,
-                                     &entropy, NULL, 0)) != 0) {
+                                     &entropy, (const unsigned char *) pers,
+                                     strlen(pers))) != 0) {
         printf(" failed\n  ! mbedtls_ctr_drbg_seed returned -0x%04x\n",
                -ret);
         return ret;
     }
 
-    if ((ret = mbedtls_pk_parse_key(&pk, (unsigned char *) privkey, sizeof(privkey), NULL, 0)) != 0) {
-        printf(" failed\n  ! mbedtls_pk_parse_keyfile returned -0x%04x\n", -ret);
+    if ((ret = mbedtls_pk_parse_key(&pk, (unsigned char *) privkey, sizeof(privkey) + 1, NULL, 0)) != 0) {
+        printf(" failed\n  ! mbedtls_pk_parse_key returned -0x%04x\n", -ret);
         return ret;
     }
 
     // Decrypt the encrypted RSA data and print the result.
     size_t out_len;
-    if ((ret = mbedtls_pk_decrypt(&pk, (unsigned char *) nonce, nonce_len,
+    if ((ret = mbedtls_pk_decrypt(&pk, (unsigned char *) nonce, nonce_len + 1,
                                   (unsigned char *) out_buf, &out_len, out_buf_size,
                                   mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
         printf(" failed\n  ! mbedtls_pk_decrypt returned -0x%04x\n",
