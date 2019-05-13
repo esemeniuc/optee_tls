@@ -186,8 +186,22 @@ verifyReq(int fd,
 #include "mbedtls/pk.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
+#include "mbedtls/platform.h"
 #include "utee_syscalls.h"
+size_t ceil4(size_t x){
+    return ((x+3) / 4) * 4;
+}
 
+void *TEE_Calloc(size_t size) {
+    size = ceil4(size);
+    printf("CALLOC Called %lu\n", size);
+    return TEE_Malloc(size, TEE_MALLOC_FILL_ZERO);
+}
+
+void TEE_Free2(void *ptr) {
+    printf("FREE Called\n");
+//    TEE_Free(ptr);
+}
 /**
  * \brief           Entropy poll callback pointer
  *
@@ -214,6 +228,7 @@ int decrypt_nonce(char *nonce, size_t nonce_len, char *out_buf, size_t out_buf_s
     mbedtls_pk_context pk;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_platform_set_calloc_free( TEE_Calloc, TEE_Free2);
     mbedtls_pk_init(&pk);
     mbedtls_entropy_init(&entropy);
     mbedtls_entropy_add_source(&entropy, mbed_entropy_get_bytes,
@@ -282,7 +297,7 @@ static TEE_Result ta_verify(uint32_t param_types, TEE_Param params[4]) {
     }
 
     unsigned char resp_buf[4096];
-    return verifyReq(fd, SERVER_NAME, SERVER_PORT, email, nonce, resp_buf, sizeof(resp_buf));
+    return verifyReq(fd, SERVER_NAME, SERVER_PORT, email, nonce_dec_buf, resp_buf, sizeof(resp_buf));
 }
 
 static TEE_Result ta_decrypt(uint32_t param_types, TEE_Param params[4]) {
